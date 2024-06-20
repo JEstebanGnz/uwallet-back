@@ -20,6 +20,8 @@ Route::get('/', function () {
     return ['Laravel' => app()->version()];
 });
 
+//Route::get('/2fa/setup', [Google2FAController::class, 'setup'])
+
 //Route::get('/auth/google/redirect', function () {
 //    return \Laravel\Socialite\Facades\Socialite::driver("google")->stateless()->redirect();
 //});
