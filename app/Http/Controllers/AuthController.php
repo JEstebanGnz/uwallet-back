@@ -28,44 +28,25 @@ class AuthController extends Controller
         ], [
             'name' => $googleUser->getName(),
             'password' => 'automatic_generate_password',
-            'google2fa_secret' => null,
-        ]);
+            'google2fa_secret' => null]);
 
-        //Set the 2FA Token to user
-        $tokens = User::setAndGetUser2FATokens($user);
-        $setupSecretKey = $tokens['setupSecretKey'];
-        $token_2fa = $tokens['token_2fa'];
+        $cookies = [];
+        //Set the LoginToken for the user so that I can know what user is trying to authenticate.
+        $userLoginToken = User::setUserLoginToken($user);
+        $userLoginTokenCookie = Cookie::make('user_login_token', $userLoginToken, 60);
+        $cookies [] = $userLoginTokenCookie;
 
-        $setupSecretKeyCookie = Cookie::make('setup_secret_key', $setupSecretKey, 60);
-        $token_2faCookie = Cookie::make('token_2fa', $token_2fa, 60);
-        return redirect()->away(Env('GOOGLE_SUCCESSFUL_LOGIN_REDIRECT'))->withCookies([$setupSecretKeyCookie, $token_2faCookie ]);
-
-
-//        Auth::login($user);
-        $user->tokens()->delete();
-        //And now create the session token
-        $token = $user->createToken('auth_token')->plainTextToken;
-        $cookie = Cookie::make('access_token', $token, 60);
-
-
-
-
-        return redirect()->away(Env('GOOGLE_SUCCESSFUL_LOGIN_REDIRECT'))->withCookie($cookie);
-
-
-        $firstLogin = User::handleUserStatusRedirect($user);
-
-        if ($firstLogin){
-//            Auth::login($user);
-            $google2fa = app('pragmarx.google2fa');
-            $secret = $google2fa->generateSecretKey();
-            $user->google2fa_secret = $secret;
-            $user->save();
-            Session::put('user',$user);
-            return view('google2FASetup', ['secret' => $secret]);
+        //Is this the first time the user sings in?
+        if(!$user->google2fa_enabled){
+            //First time login, 2FA Validation must be set up
+            $google2FASecretKey = User::setGoogle2FASecretKey($user);
+            $google2FASecretKeyCookie = Cookie::make('google_2FA_secret_key', $google2FASecretKey, 60);
+            $cookies [] = $google2FASecretKeyCookie;
+            return redirect()->away(Env('GOOGLE_2FA_SETUP_FRONT_REDIRECT'))->withCookies($cookies);
         }
 
-
+        //User has already logged in before, redirect directly to otp validation screen
+        return redirect()->away(Env('GOOGLE_OPT_VALIDATION_FRONT_REDIRECT'))->withCookies($cookies);
     }
 
     public function logout(Request $request){
@@ -76,11 +57,34 @@ class AuthController extends Controller
         $user = auth()->user();
         $user->tokens()->delete();
         Cookie::queue(Cookie::forget('access_token'));
-//        \Illuminate\Support\Facades\Cookie::make('access_token', $token, 60);
 
         return [
             'message' => 'You have successfully logged out'
         ];
+    }
+
+    public function authenticateUser (Request $request){
+        //Verify if token matches (so that I know who is trying to sign in and that it's valid
+
+        $otpCode = $request->input('otp');
+        $userLoginToken = $request->input('userLoginToken');
+
+        $validLoginTokenUser = User::validateLoginToken($userLoginToken);
+        if (!$validLoginTokenUser) {
+            return response()->json(['error' => 'Invalid login token provided'], 401);
+        }
+
+        $user = User::find($validLoginTokenUser->id);
+        $validOTP = User::validateGoogleOTPCode($user, $otpCode);
+        if (!$validOTP){
+            return response()->json(['message' => 'Código OTP incorrecto, verifica e intenta nuevamente'], 500);
+        }
+
+        // Revoke all tokens for the user if any previous exist
+        $user->tokens()->delete();
+        //Authenticate user and set auth_token
+        $token = $user->createToken('auth_token')->plainTextToken;
+        return response()->json(['user' => $user, 'token' => $token])->withHeaders(['auth-token' => $token]);
     }
 
     public function userInfo(Request $request){

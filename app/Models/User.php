@@ -58,19 +58,33 @@ class User extends Authenticatable
 //        return Google2FA::showValidate2FAView($user); // Redirect to 2FA validation
     }
 
-    public static function setAndGetUser2FATokens ($user){
+    public static function setUserLoginToken ($user){
         $token_2fa = bin2hex(random_bytes(10));
+        DB::table('2fa_user_tokens')
+            ->updateOrInsert(['user_id'=> $user['id']], ['token' => $token_2fa, 'expiration' => 45]);
+        return $token_2fa;
+    }
+
+    public static function setGoogle2FASecretKey ($user){
         $google2fa = app('pragmarx.google2fa');
         $secret = $google2fa->generateSecretKey();
         $user->google2fa_secret = $secret;
         $user->save();
-        $setupSecretKey = $secret;
-        DB::table('2fa_user_tokens')->updateOrInsert(['user_id'=> $user['id']], ['token' => $token_2fa, 'expiration' => 45]);
-        return [
-            'setupSecretKey' => $setupSecretKey,
-            'token_2fa' => $token_2fa,
-        ];
+        return $secret;
     }
+
+    public static function validateGoogleOTPCode($user, $otpCode){
+        $google2fa = app('pragmarx.google2fa');
+        return $google2fa->verifyKey($user["google2fa_secret"], $otpCode);
+    }
+
+    public static function validateLoginToken($token2FA){
+        return DB::table('2fa_user_tokens')->select(['u.id'])
+            ->where('token','=',$token2FA)
+            ->join('users as u','2fa_user_tokens.user_id','=','u.id')
+            ->first();
+    }
+
 
 
 }

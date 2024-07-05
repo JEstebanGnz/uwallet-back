@@ -14,33 +14,16 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-//Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
-//    return $request->user();
-//});
-
 /* >>>>>>>>>>>>>>>>>>>>>>>  Auth routes >>>>>>>><<<<<< */
-
 Route::get('auth/google/redirect', [\App\Http\Controllers\AuthController::class, 'redirectToGoogle']);
 Route::get('auth/google/callback', [\App\Http\Controllers\AuthController::class, 'handleGoogleCallback']);
-
-
-Route::post('auth/2fa/validate', [\App\Http\Controllers\Google2FAController::class, 'validate2FA']);
-
-
-
+Route::post('auth/otp/validate', [\App\Http\Controllers\AuthController::class, 'authenticateUser']);
 
 Route::middleware(['auth:sanctum'])->group(function (){
-
-
-
     Route::post('userData', [\App\Http\Controllers\AuthController::class, 'userInfo']);
     Route::get('user',[\App\Http\Controllers\AuthController::class, 'userInfo']);
     Route::get('logout',[\App\Http\Controllers\AuthController::class, 'logout']);
     Route::get('check-auth',[\App\Http\Controllers\AuthController::class, function () {
         return response()->json(['authenticated' => true]);
     }]);
-
 });
-
-
-
