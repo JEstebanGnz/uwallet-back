@@ -73,6 +73,20 @@ class User extends Authenticatable
         return $secret;
     }
 
+    public static function setGoogle2FAAuthEnabled($user){
+
+        //Es decir, si es un redirect desde la vista de google2FASetup
+        if($user === null){
+            $user = Session::get('temporary_user');
+        }
+        if($user->google2fa_enabled === false){
+            $user->google2fa_enabled = true;
+            $user->save();
+        }
+        Session::put('temporary_user', $user);
+        return view('google2FAValidation');
+    }
+
     public static function validateGoogleOTPCode($user, $otpCode){
         $google2fa = app('pragmarx.google2fa');
         return $google2fa->verifyKey($user["google2fa_secret"], $otpCode);

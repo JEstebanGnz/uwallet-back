@@ -64,14 +64,14 @@ class AuthController extends Controller
     }
 
     public function authenticateUser (Request $request){
-        //Verify if token matches (so that I know who is trying to sign in and that it's valid
-
         $otpCode = $request->input('otp');
         $userLoginToken = $request->input('userLoginToken');
 
+        //Verify if token matches (so that I know who is trying to sign in and that it's valid)
         $validLoginTokenUser = User::validateLoginToken($userLoginToken);
         if (!$validLoginTokenUser) {
-            return response()->json(['error' => 'Invalid login token provided'], 401);
+            return response()->json(['error' => 'Invalid login token provided,
+            redirect to Google Callback again'], 401);
         }
 
         $user = User::find($validLoginTokenUser->id);
@@ -79,6 +79,8 @@ class AuthController extends Controller
         if (!$validOTP){
             return response()->json(['message' => 'Código OTP incorrecto, verifica e intenta nuevamente'], 500);
         }
+        //Set google2fa_enabled = true so user is redirected to validateOTP screen directly
+        User::setGoogle2FAAuthEnabled($user);
 
         // Revoke all tokens for the user if any previous exist
         $user->tokens()->delete();
